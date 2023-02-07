@@ -1877,10 +1877,10 @@ text_view_handle_method (GDBusConnection       *connection,
       GtkTextIter iter;
       gtk_text_buffer_get_iter_at_offset (buffer, &iter, offset);
 
-      GdkRectangle rect = { 0, };
+      GtkTextRectangle rect = { 0, };
       gtk_text_view_get_iter_location (GTK_TEXT_VIEW (widget), &iter, &rect);
 
-      int x, y;
+      GtkTextUnit x, y;
       gtk_text_view_buffer_to_window_coords (GTK_TEXT_VIEW (widget),
                                              GTK_TEXT_WINDOW_WIDGET,
                                              rect.x, rect.y,
@@ -1897,8 +1897,8 @@ text_view_handle_method (GDBusConnection       *connection,
                                              g_variant_new ("(iiii)",
                                                             x,
                                                             y,
-                                                            rect.width,
-                                                            rect.height));
+                                                            (int)rect.width,
+                                                            (int)rect.height));
     }
   else if (g_strcmp0 (method_name, "GetRangeExtents") == 0)
     {
@@ -1985,7 +1985,7 @@ text_view_handle_method (GDBusConnection       *connection,
 
       if (use_align && (x_align != -1.0 || y_align != -1.0))
         {
-          GdkRectangle visible_rect, iter_rect;
+          GtkTextRectangle visible_rect, iter_rect;
 
           gtk_text_view_get_visible_rect (GTK_TEXT_VIEW (widget), &visible_rect);
           gtk_text_view_get_iter_location (GTK_TEXT_VIEW (widget), &iter, &iter_rect);
