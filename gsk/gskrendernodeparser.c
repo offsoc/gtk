@@ -58,6 +58,7 @@
 
 #include <glib/gstdio.h>
 
+
 typedef struct _Context Context;
 
 struct _Context
@@ -1055,7 +1056,8 @@ add_font_from_file (Context     *context,
 static gboolean
 add_font_from_bytes (Context  *context,
                      GBytes   *bytes,
-                     GError  **error)
+                     gboolean  compressed,
+                     GError   **error)
 {
   GFile *file;
   GIOStream *iostream;
@@ -1066,7 +1068,19 @@ add_font_from_bytes (Context  *context,
   if (!file)
     return FALSE;
 
-  ostream = g_io_stream_get_output_stream (iostream);
+  if (compressed)
+    {
+      GConverter *converter;
+
+      converter = G_CONVERTER (g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_ZLIB));
+      ostream = g_converter_output_stream_new (g_io_stream_get_output_stream (iostream), converter);
+      g_object_unref (converter);
+    }
+  else
+    {
+      ostream = g_io_stream_get_output_stream (iostream);
+    }
+
   if (g_output_stream_write_bytes (ostream, bytes, NULL, error) == -1)
     {
       g_object_unref (file);
@@ -1088,9 +1102,10 @@ add_font_from_bytes (Context  *context,
 #else /* !HAVE_PANGOFT */
 
 static gboolean
-add_font_from_bytes (Context  *context,
-                     GBytes   *bytes,
-                     GError  **error)
+add_font_from_bytes (Context   *context,
+                     GBytes    *bytes,
+                     gboolean   compressed,
+                     GError   **error)
 {
   g_set_error (error,
                GTK_CSS_PARSER_ERROR,
@@ -1134,6 +1149,7 @@ parse_font (GtkCssParser *parser,
           GError *error = NULL;
           GtkCssLocation start_location;
           gboolean success = FALSE;
+          gboolean compressed = FALSE;
 
           start_location = *gtk_css_parser_get_start_location (parser);
           url = gtk_css_parser_consume_url (parser);
@@ -1143,7 +1159,23 @@ parse_font (GtkCssParser *parser,
               scheme = g_uri_parse_scheme (url);
               if (scheme && g_ascii_strcasecmp (scheme, "data") == 0)
                 {
-                  bytes = gtk_css_data_url_parse (url, NULL, &error);
+                  char *mimetype;
+
+                  bytes = gtk_css_data_url_parse (url, &mimetype, &error);
+
+                  if (mimetype)
+                    {
+                      if (strcmp (mimetype, "font/ttf+zip") == 0)
+                        {
+                          compressed = TRUE;
+                        }
+                      else if (strcmp (mimetype, "font/ttf") != 0)
+                        {
+                          gtk_css_parser_error_value (parser, "Not a font mimetype: %s", mimetype);
+                          g_clear_pointer (&bytes, g_bytes_unref);
+                        }
+                      g_free (mimetype);
+                    }
                 }
               else
                 {
@@ -1158,7 +1190,7 @@ parse_font (GtkCssParser *parser,
               g_free (url);
               if (bytes != NULL)
                 {
-                  success = add_font_from_bytes (context, bytes, &error);
+                  success = add_font_from_bytes (context, bytes, compressed, &error);
                   g_bytes_unref (bytes);
                 }
 
@@ -3586,6 +3618,35 @@ base64_encode_with_linebreaks (const guchar *data,
   return out;
 }
 
+static GBytes *
+g_converter_convert_bytes (GConverter  *converter,
+                           GBytes      *bytes,
+                           GError     **error)
+{
+  GInputStream *input;
+  GOutputStream *output;
+  GOutputStream *conv;
+  GBytes *result = NULL;
+  GOutputStreamSpliceFlags flags;
+
+  input = g_memory_input_stream_new_from_bytes (bytes);
+  output = g_memory_output_stream_new_resizable ();
+  conv = g_converter_output_stream_new (output, converter);
+
+  flags = G_OUTPUT_STREAM_SPLICE_CLOSE_SOURCE | G_OUTPUT_STREAM_SPLICE_CLOSE_TARGET;
+
+  if (g_output_stream_splice (conv, input, flags, NULL, error) != -1)
+    {
+      result = g_memory_output_stream_steal_as_bytes (G_MEMORY_OUTPUT_STREAM (output));
+    }
+
+  g_object_unref (conv);
+  g_object_unref (output);
+  g_object_unref (input);
+
+  return result;
+}
+
 static void
 append_texture_param (Printer    *p,
                       const char *param_name,
@@ -3657,8 +3718,9 @@ gsk_text_node_serialize_font (GskRenderNode *node,
   FontInfo *info;
   hb_face_t *face;
   hb_blob_t *blob;
-  const char *data;
-  guint length;
+  GBytes *bytes;
+  GConverter *converter;
+  GBytes *compressed;
   char *b64;
 
   desc = pango_font_describe_with_absolute_size (font);
@@ -3683,15 +3745,21 @@ gsk_text_node_serialize_font (GskRenderNode *node,
     face = hb_face_reference (info->face);
 
   blob = hb_face_reference_blob (face);
-  data = hb_blob_get_data (blob, &length);
+  bytes = g_bytes_new_static (hb_blob_get_data (blob, NULL),
+                              hb_blob_get_length (blob));
+  converter = G_CONVERTER (g_zlib_compressor_new (G_ZLIB_COMPRESSOR_FORMAT_ZLIB, -1));
+  compressed = g_converter_convert_bytes (converter, bytes, NULL);
+  b64 = base64_encode_with_linebreaks (g_bytes_get_data (compressed, NULL),
+                                       g_bytes_get_size (compressed));
 
-  b64 = base64_encode_with_linebreaks ((const guchar *) data, length);
-
-  g_string_append (p->str, " url(\"data:font/ttf;base64,\\\n");
+  g_string_append (p->str, " url(\"data:font/ttf+zip;base64,\\\n");
   append_escaping_newlines (p->str, b64);
   g_string_append (p->str, "\")");
 
   g_free (b64);
+  g_bytes_unref (compressed);
+  g_object_unref (converter);
+  g_bytes_unref (bytes);
   hb_blob_destroy (blob);
   hb_face_destroy (face);
 
