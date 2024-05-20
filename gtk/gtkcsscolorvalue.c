@@ -1614,6 +1614,8 @@ gtk_css_color_value_parse (GtkCssParser *parser)
     {
       ColorFunctionData data = { NULL, };
 
+      gtk_css_parser_warn_deprecated (parser, "lighter() is deprecated");
+
       if (gtk_css_parser_consume_function (parser, 1, 1, parse_color_number, &data))
         value = gtk_css_color_value_new_shade (data.color, 1.3);
       else
@@ -1625,6 +1627,8 @@ gtk_css_color_value_parse (GtkCssParser *parser)
   else if (gtk_css_parser_has_function (parser, "darker"))
     {
       ColorFunctionData data = { NULL, };
+
+      gtk_css_parser_warn_deprecated (parser, "darker() is deprecated");
 
       if (gtk_css_parser_consume_function (parser, 1, 1, parse_color_number, &data))
         value = gtk_css_color_value_new_shade (data.color, 0.7);
@@ -1638,6 +1642,8 @@ gtk_css_color_value_parse (GtkCssParser *parser)
     {
       ColorFunctionData data = { NULL, };
 
+      gtk_css_parser_warn_deprecated (parser, "shade() is deprecated");
+
       if (gtk_css_parser_consume_function (parser, 2, 2, parse_color_number, &data))
         value = gtk_css_color_value_new_shade (data.color, data.value);
       else
@@ -1650,6 +1656,8 @@ gtk_css_color_value_parse (GtkCssParser *parser)
     {
       ColorFunctionData data = { NULL, };
 
+      gtk_css_parser_warn_deprecated (parser, "alpha() is deprecated");
+
       if (gtk_css_parser_consume_function (parser, 2, 2, parse_color_number, &data))
         value = gtk_css_color_value_new_alpha (data.color, data.value);
       else
@@ -1661,6 +1669,8 @@ gtk_css_color_value_parse (GtkCssParser *parser)
   else if (gtk_css_parser_has_function (parser, "mix"))
     {
       ColorFunctionData data = { NULL, };
+
+      gtk_css_parser_warn_deprecated (parser, "mix() is deprecated");
 
       if (gtk_css_parser_consume_function (parser, 3, 3, parse_color_mix, &data))
         value = gtk_css_color_value_new_mix (data.color, data.color2, data.value);
