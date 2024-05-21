@@ -29,6 +29,18 @@ typedef enum {
   GTK_CSS_COLOR_SPACE_SRGB_LINEAR,
 } GtkCssColorSpace;
 
+typedef enum {
+  GTK_CSS_INTERPOLATION_COLOR_SPACE_SRGB,
+  GTK_CSS_INTERPOLATION_COLOR_SPACE_HSL
+} GtkCssInterpolationColorSpace;
+
+typedef enum {
+  GTK_CSS_HUE_SHORTER,
+  GTK_CSS_HUE_LONGER,
+  GTK_CSS_HUE_INCREASING,
+  GTK_CSS_HUE_DECREASING,
+} GtkCssHueInterpolationMethod;
+
 GtkCssValue *   gtk_css_color_value_new_transparent     (void) G_GNUC_PURE;
 GtkCssValue *   gtk_css_color_value_new_white           (void) G_GNUC_PURE;
 GtkCssValue *   gtk_css_color_value_new_literal         (const GdkRGBA  *color) G_GNUC_PURE;
@@ -42,6 +54,12 @@ GtkCssValue *   gtk_css_color_value_new_alpha           (GtkCssValue    *color,
 GtkCssValue *   gtk_css_color_value_new_mix             (GtkCssValue    *color1,
                                                          GtkCssValue    *color2,
                                                          double          factor) G_GNUC_PURE;
+GtkCssValue *   gtk_css_color_value_new_color_mix       (GtkCssInterpolationColorSpace  color_space,
+                                                         GtkCssHueInterpolationMethod   hue_interpolation_method,
+                                                         GtkCssValue                   *color1,
+                                                         GtkCssValue                   *color2,
+                                                         double                         percentage1,
+                                                         double                         percentage2) G_GNUC_PURE;
 GtkCssValue *   gtk_css_color_value_new_current_color   (void) G_GNUC_PURE;
 GtkCssValue *   gtk_css_color_value_new_oklab           (float           L,
                                                          float           a,
